@@ -22,6 +22,8 @@ db.cloud.configure({
     requireAuth: true,
 });
 
+window.db = db;
+
 const addSession = (s: Omit<Session, 'id'>) => db.sessions.add(s);
 const deleteSession = (id: string | undefined) => db.sessions.delete(id);
 const fetchAllSessions = () => db.sessions.toArray();

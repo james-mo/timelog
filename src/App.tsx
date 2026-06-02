@@ -167,10 +167,18 @@ function EditSession({session, activities = []}: { session: Session, activities?
 
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const [form, setForm] = useState(session);
+  const editForm = {
+    id: session.id,
+    activity_name: session.activity_name,
+    duration: formatDuration(session.duration),
+    timestamp: session.timestamp,
+    rating: session.rating
+  }
+
+  const [form, setForm] = useState(editForm);
 
   function open() {
-    setForm(session);
+    setForm(editForm);
     dialogRef.current?.showModal();
   }
 
@@ -180,7 +188,7 @@ function EditSession({session, activities = []}: { session: Session, activities?
       id: session.id,
       activity_name: form.activity_name.trim(),
       timestamp: form.timestamp,
-      duration: form.duration,
+      duration: parseDuration(form.duration),
       rating: form.rating,
     };
     await updateSession(updatedSession);
@@ -219,8 +227,8 @@ function EditSession({session, activities = []}: { session: Session, activities?
           <label>
             Duration (hh:mm:ss)
             <input
-              value={formatDuration(form.duration)}
-              onChange={e => setForm({ ...form, duration: parseDuration(e.target.value) })}
+              value={form.duration}
+              onChange={e => setForm({ ...form, duration: e.target.value })}
               pattern="\d{1,2}:\d{2}:\d{2}"
               required
             />
@@ -266,16 +274,27 @@ function Timer({ onStop }: { onStop: (duration: number, startTime: number) => vo
     };
   }, [isActive]);
 
+  useEffect(() => {
+    const saved = localStorage.getItem('strata_timer_start');
+    if (saved) {
+      setStartTime(Number(saved));
+      setNow(Math.floor(Date.now() / 1000));
+      setIsActive(true);
+    }
+  }, []);
+
   function start() {
     const t = Math.floor(Date.now() / 1000);   
     setStartTime(t);
     setNow(t);
     setIsActive(true);
+    localStorage.setItem('strata_timer_start', String(t));
   }
 
   function stop() {
     setIsActive(false);
     onStop(now - startTime, startTime);
+    localStorage.removeItem('strata_timer_start');
   }
 
   return (
@@ -300,11 +319,11 @@ function GetSessions({activities = []}: { activities?: string[]} ) {
       {sessions.map((session) => (
         <tr key={session.id}>
           <td className='name'>{session.activity_name}</td>
-          <td>{new Date(session.timestamp * 1000).toLocaleString(undefined, {
+          <td className='data'>{new Date(session.timestamp * 1000).toLocaleString(undefined, {
             year: 'numeric', month: 'numeric', day: 'numeric',
             hour: 'numeric', minute: '2-digit',
           })}</td>
-          <td>{formatDurationShort(session.duration)}</td>
+          <td className='data'>{formatDurationShort(session.duration)}</td>
           <td>{session.rating}</td>
           <td className='actions'><EditSession session={session} activities={activities}></EditSession><button className='action-button' onClick={() => {
               if (confirm(`Are you sure you want to delete ${session.activity_name}?`)) {
@@ -337,6 +356,8 @@ export function ActivityChart() {
 export function ActivityLineChart({ activity }: {activity: string}) {
   const sessions = useLiveQuery(() => db.sessions.toArray()) ?? [];
   const data = totalsByDay(sessions, activity);
+  console.log(sessions);
+  console.log(data);
 
   return (
     <ResponsiveContainer width="90%" height={300}>

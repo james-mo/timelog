@@ -30,6 +30,7 @@ export function totalsByDay(sessions: Session[], activity: string): dateActivity
     }
 
     const sortedDays = Object.entries(acc).sort(([a], [b]) => a.localeCompare(b));
+    console.log(sortedDays);
     let total = 0;
 
     return sortedDays.map(([date, daySeconds]) => {
