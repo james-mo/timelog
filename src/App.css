@@ -214,3 +214,12 @@ form button {
 #activity-options {
   display: none;
 }
+
+#timer {
+  margin-left: 5%;
+  margin-bottom: 1em;
+}
+
+#timer * {
+  margin-right: 1em;
+}

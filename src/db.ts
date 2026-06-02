@@ -1,4 +1,4 @@
-import Dexie, { type EntityTable } from "dexie";
+import Dexie, { type EntityTable, type PromiseExtended } from "dexie";
 
 type Session = {
     id?: number;
@@ -25,6 +25,9 @@ const getAllActivityNames = async (): Promise<string[]> => {
     const sessions = await db.sessions.toArray();
     return [...new Set(sessions.map(s => s.activity_name))];
 };
+const updateSession = async (updatedSession: Session): Promise<Number | undefined> => {
+    return db.sessions.put(updatedSession);
+}
 
-export { db, addSession, deleteSession, fetchAllSessions, fetchSessionsSince, getAllActivityNames };
+export { db, addSession, deleteSession, updateSession, fetchAllSessions, fetchSessionsSince, getAllActivityNames };
 export type { Session };
