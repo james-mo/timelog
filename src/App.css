@@ -229,7 +229,6 @@ form button {
   margin-top: 1em;
 }
 
-input, textarea, select {
-  color: var(--text-h);
-  background: var(--bg);
+.dexie-dialog input {
+  color: var(--bg);
 }
