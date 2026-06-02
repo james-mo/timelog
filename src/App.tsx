@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession } from './db'
+import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions } from './db'
 import { parseDuration, formatDuration, unixTimestamp, formatDurationShort, unixTimestampToDate, formatStopwatch } from './format';
 import { totalsByActivity, totalsByDay } from './stats';
 
@@ -129,6 +129,36 @@ export function AddSessionDialog({ activities = [], prefill = null, onClose = un
           </div>
         </form>
       </dialog>
+    </>
+  )
+}
+
+function Export() {
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExport() {
+    setIsExporting(true);
+    const sessions = await fetchAllSessions();
+    const json = JSON.stringify(sessions, null, 2);
+    const blob = new Blob([json], { type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `strata-export-${unixTimestampToDate(Date.now()/1000).slice(0,10)}.json`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+    setIsExporting(false);
+  }
+
+  return (
+    <>
+      <div id='export-section'>
+        <div id='export'><button onClick={handleExport}>{ isExporting ? "Exporting..." : "Export data"}</button></div>
+      
+      </div>
     </>
   )
 }
@@ -339,6 +369,7 @@ function App() {
         prefill={pending}
         onClose={() => setPending(null)}
       />
+      <Export />
       <table className='table' id='log'>
         <thead>
           <tr>

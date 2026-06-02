@@ -223,3 +223,13 @@ form button {
 #timer * {
   margin-right: 1em;
 }
+
+#export-section {
+  margin-left: 5%;
+  margin-top: 1em;
+}
+
+input, textarea, select {
+  color: var(--text-h);
+  background: var(--bg);
+}
