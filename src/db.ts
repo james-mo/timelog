@@ -1,4 +1,4 @@
-import Dexie, { type EntityTable, type PromiseExtended } from "dexie";
+import Dexie, { type EntityTable } from "dexie";
 
 type Session = {
     id?: number;

@@ -1,4 +1,4 @@
-import { type Session, getAllActivityNames } from "./db";
+import { type Session } from "./db";
 
 type totalActivity = {
     activity: string,

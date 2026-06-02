@@ -1,5 +1,5 @@
-import { act, useEffect, useRef, useState } from 'react'
-import { addSession, deleteSession, type Session, fetchAllSessions, db, getAllActivityNames, updateSession } from './db'
+import { useEffect, useRef, useState } from 'react'
+import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession } from './db'
 import { parseDuration, formatDuration, unixTimestamp, formatDurationShort, unixTimestampToDate, formatStopwatch } from './format';
 import { totalsByActivity, totalsByDay } from './stats';
 
