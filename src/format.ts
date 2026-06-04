@@ -14,13 +14,24 @@ function formatDurationShort(totalSeconds: number): string {
     return [h_str, m_str].join(':')
 }
 
+function formatDurationLong(totalSeconds: number): string {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    
+    if (h > 0) {
+        return (`${h}h ${m}m`);
+    } else {
+        return (`${m}m`);
+    }
+}
+
 function formatStopwatch(seconds: number): string {
     const h = Math.floor(seconds/3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
 
     const h_str = h.toString();
-    const m_str = m.toString();
+    const m_str = m.toString().padStart(2, '0');
     const s_str = s.toString().padStart(2, '0');
 
     if (h == 0) {
@@ -47,5 +58,5 @@ function unixTimestampToDate(timestamp: number): string {
     return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
 }
 
-export { parseDuration, formatDuration, formatDurationShort, unixTimestamp, unixTimestampToDate, formatStopwatch }
+export { parseDuration, formatDuration, formatDurationShort, formatDurationLong, unixTimestamp, unixTimestampToDate, formatStopwatch }
 

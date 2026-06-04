@@ -4,17 +4,14 @@
   --text-h: #2a2723;
   --bg: #f4f2ed;
   --border: #e5e4e7;
-  --code-bg: #f4f3ec;
   --accent: #8a7d6b;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
+  --accent-bg: rgba(147, 131, 98, 0.1);
+  --accent-border: rgba(95, 77, 19, 0.5);
+  --zebra-bg: rgba(227, 227, 227, 0.5);
   --sans: 'IBM Plex Sans', system-ui, sans-serif;
   --heading: 'IBM Plex Serif', Georgia, serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --header-bg: rgba(0,0,0,0.1);
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
@@ -38,13 +35,10 @@
     --bg: #221d15;
     --border: #34302a;
     --surface: #252220;
-    --code-bg: #1f2028;
     --accent: #a89683;
     --accent-bg: rgba(192, 132, 252, 0.15);
     --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --zebra-bg: rgba(47, 48, 58, 0.5);
   }
 }
 
@@ -55,7 +49,6 @@ body {
 h1,
 h2 {
   font-family: var(--heading);
-  font-weight: 500;
   color: var(--text-h);
 }
 
@@ -85,6 +78,10 @@ p {
   font-family: var(--mono);
 }
 
+#content {
+  margin: 0 5%;
+}
+
 #app {
   max-width: 100%;
   margin: 0 auto;
@@ -93,10 +90,6 @@ p {
   box-sizing: border-box;
 }
 
-#app-name {
-  margin-left: 5%;
-  margin-top: 5%;
-}
 
 .tooltip {
   vertical-align: super;
@@ -111,7 +104,6 @@ table {
   color: var(--text);
   background: var(--bg);
   align-self: center;
-  margin: auto 5%;
 }
 
 th,
@@ -134,7 +126,7 @@ tr :nth-child(3) {
 }
 
 tbody tr:nth-child(odd) {
-  background: var(--social-bg);
+  background: var(--zebra-bg);
 }
 
 tbody tr:hover {
@@ -185,7 +177,6 @@ button:hover {
   padding: 0.6em 1.2em;
   font-weight: 500;
   transition: transform 0.05s;
-  margin-left: 5%;
 }
 .add-session:hover {
   background: var(--accent-border);
@@ -201,15 +192,15 @@ dialog::backdrop {
 }
 
 form label {
-  margin-bottom: 5%;
+  margin-bottom: 1em;
 }
 
 form label, form input {
   display: block;
 }
 
-form button {
-  margin-right: 5%;
+form button:nth-last-child(2) {
+  margin-right: 1em;
 }
 
 #activity-options {
@@ -217,7 +208,6 @@ form button {
 }
 
 #timer {
-  margin-left: 5%;
   margin-bottom: 1em;
 }
 
@@ -226,10 +216,35 @@ form button {
 }
 
 #export-section {
-  margin-left: 5%;
   margin-top: 1em;
 }
 
 .dexie-dialog input {
-  color: var(--bg);
+  color: var(--text-h);
+}
+
+.recharts-responsive-container {
+  margin-top: 5em;
+  overflow-x: visible;
+}
+
+.bar {
+  cursor: pointer;
+}
+
+.app-header {
+  display: flex;
+  align-items:center;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  background: var(--header-bg);
+  padding: 0 2rem;
+}
+
+#total-today {
+  letter-spacing: .1rem;
+}
+
+#total-today .data {
+  word-spacing: -.5rem;
 }

@@ -38,3 +38,10 @@ export function totalsByDay(sessions: Session[], activity: string): dateActivity
         return { date, totalSeconds: total };
     });
 }
+
+export function getTotalToday(sessions: Session[]): number {
+    const today = sessions.filter(s => new Date(s.timestamp*1000).toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA'));
+    return today.reduce((acc, session) => { 
+        return acc + session.duration;
+    }, 0);
+}
