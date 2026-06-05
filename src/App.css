@@ -162,7 +162,8 @@ button {
   padding: 0 10px;
   font: inherit;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background .2s;
+  color: black;
 }
 
 button:hover {
