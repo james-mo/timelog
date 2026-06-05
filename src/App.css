@@ -5,6 +5,7 @@
   --bg: #f4f2ed;
   --border: #e5e4e7;
   --accent: #8a7d6b;
+  --surface: #ebe8e1;
   --accent-bg: rgba(147, 131, 98, 0.1);
   --accent-border: rgba(95, 77, 19, 0.5);
   --zebra-bg: rgba(227, 227, 227, 0.5);
@@ -79,7 +80,8 @@ p {
 }
 
 #content {
-  margin: 0 5%;
+  margin: 0% 5%;
+  margin-bottom: 5%;
 }
 
 #app {
@@ -166,24 +168,13 @@ button {
   padding: 0 10px;
   font: inherit;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.2s;
 }
 
 button:hover {
   background: var(--accent-border)
 }
 
-.add-session {
-  padding: 0.6em 1.2em;
-  font-weight: 500;
-  transition: transform 0.05s;
-}
-.add-session:hover {
-  background: var(--accent-border);
-}
-.add-session:active {
-  transform: translateY(1px);
-}
 
 dialog::backdrop {
   backdrop-filter: blur(4px);
@@ -216,7 +207,6 @@ form button:nth-last-child(2) {
 }
 
 #export-section {
-  margin-top: 1em;
 }
 
 .dexie-dialog input {
@@ -247,4 +237,29 @@ form button:nth-last-child(2) {
 
 #total-today .data {
   word-spacing: -.5rem;
+}
+
+#sidebar {
+  position: relative;
+  top: 0;
+  right: 0;
+  margin-left: auto;
+  cursor: pointer;
+  font-size: 24px;
+  z-index: 2;
+}
+
+#menu {
+  height: 100%;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  width: min(80vw, 300px);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  padding: 4rem 1.5rem 1.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }

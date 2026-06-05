@@ -75,7 +75,7 @@ export function AddSessionDialog({ activities = [], prefill = null, onClose = un
 
   return (
     <>
-      <button onClick={open} className='add-session'>+ Add session</button>
+      <button onClick={open} className='add-session'>+ Add manual session</button>
       <dialog ref={dialogRef}>
         <form onSubmit={handleSubmit} method="dialog">
           <h2>Add session</h2>
@@ -300,7 +300,7 @@ function Timer({ onStop }: { onStop: (duration: number, startTime: number) => vo
   return (
     <>
       <div id='timer'>
-        <button id='start-timer' onClick={isActive ? stop : start}>{isActive ? "Stop" : "Start"}</button>
+        <button id='start-timer' onClick={isActive ? stop : start}>{isActive ? "Stop timer" : "Start timer"}</button>
         <span id='elapsed' className='data'>{formatStopwatch(elapsed)}</span>
         
       </div>
@@ -389,9 +389,21 @@ function TotalToday() {
   )
 }
 
+function Sidebar() {
+ 
+  return (
+    <>
+      <div id="menu">
+        <Export />
+      </div>
+    </>
+  )
+}
+
 function App() {
   const [pending, setPending] = useState<{ duration: number; timestamp: number } | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const activities = useLiveQuery(getAllActivityNames) ?? [];
 
@@ -399,11 +411,19 @@ function App() {
     setPending({ duration, timestamp: startTime })
   }
 
+  function handleSidebar() {
+    setSidebarOpen(open => !open)
+  }
+
   return (
     <>
       <header className='app-header'>
         <h1 id='app-name'>Strata</h1>
         <TotalToday />
+        <nav id="sidebar" onClick={handleSidebar}>
+          {sidebarOpen ? '×' : '☰'}
+        </nav>
+        {sidebarOpen && <Sidebar></Sidebar>}
       </header>
       <div id='content'>
         <Timer onStop={handleTimerStop}/>
@@ -412,7 +432,6 @@ function App() {
           prefill={pending}
           onClose={() => setPending(null)}
         />
-        <Export />
         <table className='table' id='log'>
           <thead>
             <tr>
