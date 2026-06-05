@@ -371,7 +371,7 @@ export function ActivityLineChart({ activity }: {activity: string}) {
         <XAxis dataKey="date" textAnchor='middle'/>
         <YAxis tickFormatter={(seconds) => formatDurationShort(Number(seconds))} />
         <Tooltip formatter={(seconds) => formatDurationShort(Number(seconds))} />
-        <Line dataKey="totalSeconds" type="linear" name="Total time" stroke="var(--accent)"></Line>
+        <Line dataKey="totalSeconds" isAnimationActive={false} type="linear" name="Total time" stroke="var(--accent)"></Line>
       </LineChart>
     </ResponsiveContainer>
   )
@@ -450,8 +450,10 @@ function App() {
           </table>
         </div>
 
-        <ActivityChart onSelectActivity={setSelectedActivity} />
-        {selectedActivity && <ActivityLineChart activity={selectedActivity} />}
+        <div id='linechart'>
+          <ActivityChart onSelectActivity={setSelectedActivity} />
+          {selectedActivity && <ActivityLineChart activity={selectedActivity} />}
+        </div>
       </div>
     </>
   );
