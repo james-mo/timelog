@@ -205,6 +205,14 @@ form button:nth-last-child(2) {
 #export-section {
 }
 
+#content {
+  max-width: 100%;
+}
+
+#log {
+  overflow-x: auto;
+}
+
 .dexie-dialog input {
   color: var(--text-h);
 }

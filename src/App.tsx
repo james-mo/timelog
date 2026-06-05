@@ -433,20 +433,22 @@ function App() {
           prefill={pending}
           onClose={() => setPending(null)}
         />
-        <table className='table' id='log'>
-          <thead>
-            <tr>
-              <th className="name">Name</th>
-              <th>Timestamp</th>
-              <th>Duration<span className="hint">h:mm</span></th>
-              <th>Rating (1-5)<span className='tooltip' title="My subjective interpretation of how the session felt.">{"?"}</span></th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="sessions">
-            <GetSessions activities={activities}/>
-          </tbody>
-        </table>
+        <div id="log">
+          <table className='table'>
+            <thead>
+              <tr>
+                <th className="name">Name</th>
+                <th>Timestamp</th>
+                <th>Duration<span className="hint">h:mm</span></th>
+                <th>Rating (1-5)<span className='tooltip' title="My subjective interpretation of how the session felt.">{"?"}</span></th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sessions">
+              <GetSessions activities={activities}/>
+            </tbody>
+          </table>
+        </div>
 
         <ActivityChart onSelectActivity={setSelectedActivity} />
         {selectedActivity && <ActivityLineChart activity={selectedActivity} />}
