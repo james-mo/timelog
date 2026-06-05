@@ -371,7 +371,7 @@ export function ActivityLineChart({ activity }: {activity: string}) {
         <XAxis dataKey="date" textAnchor='middle'/>
         <YAxis tickFormatter={(seconds) => formatDurationShort(Number(seconds))} />
         <Tooltip formatter={(seconds) => formatDurationShort(Number(seconds))} />
-        <Line dataKey="totalSeconds" type="monotone" name="Total time" stroke="var(--accent)"></Line>
+        <Line dataKey="totalSeconds" type="linear" name="Total time" stroke="var(--accent)"></Line>
       </LineChart>
     </ResponsiveContainer>
   )
@@ -423,8 +423,9 @@ function App() {
         <nav id="sidebar" onClick={handleSidebar}>
           {sidebarOpen ? '×' : '☰'}
         </nav>
-        {sidebarOpen && <Sidebar></Sidebar>}
+        
       </header>
+      {sidebarOpen && <Sidebar></Sidebar>}
       <div id='content'>
         <Timer onStop={handleTimerStop}/>
         <AddSessionDialog

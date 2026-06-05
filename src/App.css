@@ -188,6 +188,8 @@ form label {
 
 form label, form input {
   display: block;
+  text-align: right;
+  width: 100%;
 }
 
 form button:nth-last-child(2) {
@@ -229,6 +231,10 @@ form button:nth-last-child(2) {
   margin-bottom: 2rem;
   background: var(--header-bg);
   padding: 0 2rem;
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 #total-today {
@@ -240,7 +246,6 @@ form button:nth-last-child(2) {
 }
 
 #sidebar {
-  position: relative;
   top: 0;
   right: 0;
   margin-left: auto;
@@ -250,16 +255,20 @@ form button:nth-last-child(2) {
 }
 
 #menu {
-  height: 100%;
-  position: fixed;
-  z-index: 1;
+  height: 10rem;
+  position: absolute;
+  z-index: 2;
   top: 0;
   right: 0;
-  width: min(80vw, 300px);
+  width: min(80vw, 200px);
   background: var(--surface);
   border-left: 1px solid var(--border);
-  padding: 4rem 1.5rem 1.5rem;
+  padding: 6rem 1.5rem 1.5rem;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+}
+
+#export-section {
+
 }
