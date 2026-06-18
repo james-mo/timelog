@@ -324,12 +324,12 @@ function GetSessions({activities = []}: { activities?: string[]} ) {
       {sessions.map((session) => (
         <tr key={session.id}>
           <td className='name'>{session.activity_name}</td>
-          <td className='data'>{new Date(session.timestamp * 1000).toLocaleString(undefined, {
+          <td className='data' data-label="When">{new Date(session.timestamp * 1000).toLocaleString(undefined, {
             year: 'numeric', month: 'numeric', day: 'numeric',
             hour: 'numeric', minute: '2-digit',
           })}</td>
-          <td className='data'>{formatDurationShort(session.duration)}</td>
-          <td>{session.rating}</td>
+          <td className='data' data-label="Duration">{formatDurationShort(session.duration)}</td>
+          <td data-label="Rating">{session.rating}</td>
           <td className='actions'>
             <EditSession session={session} activities={activities} />
             {pendingDeleteId === session.id ? (
