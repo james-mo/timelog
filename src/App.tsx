@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { getErrorLog, clearErrorLog } from './errors'
-import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions, addActivity, fetchAllActivities, deleteActivityByName } from './db'
+import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions, addActivity, fetchAllActivities, deleteActivityByName, saveTagMapToDb } from './db'
 import { parseDuration, formatDuration, formatDurationLong, unixTimestamp, formatDurationShort, unixTimestampToDate, formatStopwatch } from './format';
 import { totalsByActivity, totalsByDay, getTotalToday, totalsByDateMap } from './stats';
-import { getTagMap, saveTagMap, getAllTags, activitiesForTag, type TagMap } from './tags';
+import { getAllTags, activitiesForTag, type TagMap } from './tags';
 
 type Filter = { type: 'activity' | 'tag'; value: string } | null;
 
@@ -597,9 +597,18 @@ function App() {
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ name: string; sessionCount: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [tagMap, setTagMap] = useState<TagMap>(getTagMap);
 
   const activities = useLiveQuery(getAllActivityNames) ?? [];
+  const tagAssignments = useLiveQuery(() => db.tag_assignments.toArray()) ?? [];
+  const tagMap = useMemo<TagMap>(() => {
+    const map: TagMap = {};
+    for (const { activity_name, tag } of tagAssignments) {
+      if (!map[activity_name]) map[activity_name] = [];
+      map[activity_name].push(tag);
+    }
+    return map;
+  }, [tagAssignments]);
+
   const allTags = getAllTags(tagMap).filter(tag =>
     activitiesForTag(tagMap, tag).some(a => activities.includes(a))
   );
@@ -647,12 +656,6 @@ function App() {
     const count = await db.sessions.where('activity_name').equals(name).count();
     if (count === 0) {
       await deleteActivityByName(name);
-      if (tagMap[name]) {
-        const newMap = { ...tagMap };
-        delete newMap[name];
-        saveTagMap(newMap);
-        setTagMap(newMap);
-      }
       if (filter?.type === 'activity' && filter.value === name) setFilter(null);
     } else {
       setPendingDelete({ name, sessionCount: count });
@@ -663,12 +666,6 @@ function App() {
     if (!pendingDelete) return;
     const { name } = pendingDelete;
     await deleteActivityByName(name);
-    if (tagMap[name]) {
-      const newMap = { ...tagMap };
-      delete newMap[name];
-      saveTagMap(newMap);
-      setTagMap(newMap);
-    }
     if (filter?.type === 'activity' && filter.value === name) {
       setFilter(activeGroup && activeGroup !== '__untagged__' ? { type: 'tag', value: activeGroup } : null);
     }
@@ -676,8 +673,7 @@ function App() {
   }
 
   function handleTagSave(newMap: TagMap) {
-    saveTagMap(newMap);
-    setTagMap(newMap);
+    saveTagMapToDb(newMap);
     if (filter?.type === 'tag' && filter.value !== '__untagged__' && activitiesForTag(newMap, filter.value).length === 0) {
       setFilter(null);
       setActiveGroup(null);
@@ -692,6 +688,27 @@ function App() {
       if (filter?.type === 'tag' && filter.value === activeGroup) setFilter(null);
     }
   }, [activities, tagMap]);
+
+  // One-time migration: move tag data from localStorage into Dexie Cloud.
+  useEffect(() => {
+    const MIGRATED_KEY = 'strata_tags_migrated_v1';
+    if (localStorage.getItem(MIGRATED_KEY)) return;
+    async function migrate() {
+      try {
+        const stored = localStorage.getItem('strata_activity_tags');
+        if (stored) {
+          const localMap: TagMap = JSON.parse(stored);
+          if (Object.keys(localMap).length > 0) {
+            await saveTagMapToDb(localMap);
+          }
+          localStorage.removeItem('strata_activity_tags');
+        }
+      } finally {
+        localStorage.setItem(MIGRATED_KEY, '1');
+      }
+    }
+    migrate().catch(console.error);
+  }, []);
 
   const timer = useTimer();
   const timerRef = useRef<HTMLDivElement>(null);
