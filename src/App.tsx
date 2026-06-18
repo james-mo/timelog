@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions } from './db'
 import { parseDuration, formatDuration, formatDurationLong, unixTimestamp, formatDurationShort, unixTimestampToDate, formatStopwatch } from './format';
-import { totalsByActivity, totalsByDay, getTotalToday } from './stats';
+import { totalsByActivity, totalsByDay, getTotalToday, totalsByDateMap } from './stats';
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 import './App.css'
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -29,6 +29,7 @@ export function AddSessionDialog({ activities = [], prefill = null, onClose = un
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState(emptyForm);
+  const listId = useId();
 
   useEffect(() => {
     if (!prefill) return;
@@ -85,10 +86,10 @@ export function AddSessionDialog({ activities = [], prefill = null, onClose = un
             <input
               value={form.activity_name}
               onChange={e => setForm({ ...form, activity_name: e.target.value })}
-              list="activity-options"
+              list={listId}
               required
             />
-            <datalist id="activity-options">
+            <datalist id={listId}>
               {activities.map(a => <option key={a} value={a} />)}
             </datalist>
           </label>
@@ -166,6 +167,7 @@ function Export() {
 function EditSession({session, activities = []}: { session: Session, activities?: string[] }) {
 
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const listId = useId();
 
   const editForm = {
     id: session.id,
@@ -207,10 +209,10 @@ function EditSession({session, activities = []}: { session: Session, activities?
             <input
               value={form.activity_name}
               onChange={e => setForm({ ...form, activity_name: e.target.value })}
-              list="activity-options"
+              list={listId}
               required
             />
-            <datalist id="activity-options">
+            <datalist id={listId}>
               {activities.map(a => <option key={a} value={a} />)}
             </datalist>
           </label>
@@ -309,8 +311,9 @@ function Timer({ onStop }: { onStop: (duration: number, startTime: number) => vo
 }
 
 function GetSessions({activities = []}: { activities?: string[]} ) {
-  
+
   const sessions = useLiveQuery(() => db.sessions.orderBy('timestamp').reverse().toArray());
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>(undefined);
 
   if (!sessions) return null;
 
@@ -325,11 +328,16 @@ function GetSessions({activities = []}: { activities?: string[]} ) {
           })}</td>
           <td className='data'>{formatDurationShort(session.duration)}</td>
           <td>{session.rating}</td>
-          <td className='actions'><EditSession session={session} activities={activities}></EditSession><button className='action-button' onClick={() => {
-              if (confirm(`Are you sure you want to delete ${session.activity_name}?`)) {
-                deleteSession(session.id)
-              }
-            }}>Delete</button>
+          <td className='actions'>
+            <EditSession session={session} activities={activities} />
+            {pendingDeleteId === session.id ? (
+              <>
+                <button className='action-button' onClick={() => { deleteSession(session.id); setPendingDeleteId(undefined); }}>Confirm</button>
+                <button className='action-button' onClick={() => setPendingDeleteId(undefined)}>Cancel</button>
+              </>
+            ) : (
+              <button className='action-button' onClick={() => setPendingDeleteId(session.id)}>Delete</button>
+            )}
           </td>
         </tr>
       ))}
@@ -337,23 +345,28 @@ function GetSessions({activities = []}: { activities?: string[]} ) {
   )
 }
 
-export function ActivityChart({onSelectActivity}: {
-  onSelectActivity: (activity: string) => void
+export function ActivityChart({ selectedActivity, onSelectActivity }: {
+  selectedActivity: string | null,
+  onSelectActivity: (activity: string) => void,
 }) {
   const sessions = useLiveQuery(() => db.sessions.toArray()) ?? [];
   const data = totalsByActivity(sessions);
 
   return (
-    <ResponsiveContainer height={300}>
-      <BarChart data={data}>
-        <XAxis dataKey="activity" />
-        <YAxis tickFormatter={(seconds) => formatDurationShort(seconds)} />
+    <ResponsiveContainer height={Math.max(200, data.length * 40)}>
+      <BarChart data={data} layout="vertical">
+        <XAxis type="number" tickFormatter={(seconds) => formatDurationShort(seconds)} />
+        <YAxis type="category" dataKey="activity" width={120} />
         <Tooltip formatter={(seconds) => formatDurationShort(Number(seconds))} />
-        <Bar dataKey="totalSeconds"
-        name="Total time"
-        className='bar'
-        fill="var(--accent)"
-        onClick={(data) => onSelectActivity(data.payload.activity)} />
+        <Bar dataKey="totalSeconds" name="Total time" className='bar' fill="var(--accent)"
+          onClick={(d) => onSelectActivity(d.payload.activity)}>
+          {data.map((entry) => (
+            <Cell
+              key={entry.activity}
+              fillOpacity={selectedActivity && selectedActivity !== entry.activity ? 0.3 : 1}
+            />
+          ))}
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
@@ -362,8 +375,6 @@ export function ActivityChart({onSelectActivity}: {
 export function ActivityLineChart({ activity }: {activity: string}) {
   const sessions = useLiveQuery(() => db.sessions.toArray()) ?? [];
   const data = totalsByDay(sessions, activity);
-  console.log(sessions);
-  console.log(data);
 
   return (
     <ResponsiveContainer height={300}>
@@ -387,6 +398,79 @@ function TotalToday() {
       <span>Today · <span className='data'>{formatDurationLong(totalToday)}</span></span>
     </div>
   )
+}
+
+const DAY_LABELS = ['Sun', '', 'Tue', '', 'Thu', '', 'Sat'];
+
+function YearHeatmap({ activity }: { activity?: string }) {
+  const allSessions = useLiveQuery(() => db.sessions.toArray()) ?? [];
+  const sessions = activity ? allSessions.filter(s => s.activity_name === activity) : allSessions;
+  const dateMap = totalsByDateMap(sessions);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toLocaleDateString('en-CA');
+
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - today.getDay() - 51 * 7);
+
+  const weeks = Array.from({ length: 52 }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + w * 7 + d);
+      return { date, dateStr: date.toLocaleDateString('en-CA') };
+    })
+  );
+
+  const monthRow = weeks.map((week, wi) => {
+    const m = week[0].date.getMonth();
+    const prev = wi > 0 ? weeks[wi - 1][0].date.getMonth() : -1;
+    return m !== prev ? week[0].date.toLocaleString('default', { month: 'short' }) : '';
+  });
+
+  function level(seconds: number): number {
+    if (seconds === 0) return 0;
+    if (seconds < 3600) return 1;
+    if (seconds < 7200) return 2;
+    if (seconds < 14400) return 3;
+    return 4;
+  }
+
+  return (
+    <div className="heatmap-container">
+      <div className="heatmap-inner">
+        <div className="heatmap-months">
+          {monthRow.map((label, i) => <span key={i}>{label}</span>)}
+        </div>
+        <div className="heatmap-body">
+          <div className="heatmap-day-labels">
+            {DAY_LABELS.map((label, i) => <span key={i}>{label}</span>)}
+          </div>
+          <div className="heatmap">
+            {weeks.map((week, wi) => (
+              <div key={wi} className="heatmap-week">
+                {week.map(({ date, dateStr }) => {
+                  const seconds = dateMap[dateStr] ?? 0;
+                  const isFuture = date > today;
+                  const label = isFuture
+                    ? dateStr
+                    : `${dateStr}${seconds ? ': ' + formatDurationLong(seconds) : ''}`;
+                  return (
+                    <div
+                      key={dateStr}
+                      className={`heatmap-day${dateStr === todayStr ? ' today' : ''}`}
+                      data-level={isFuture ? 'future' : level(seconds)}
+                      data-label={label}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Sidebar() {
@@ -451,9 +535,27 @@ function App() {
         </div>
 
         <div id='linechart'>
-          <ActivityChart onSelectActivity={setSelectedActivity} />
+          <div className="chart-filter">
+            <select
+              value={selectedActivity ?? ''}
+              onChange={e => setSelectedActivity(e.target.value || null)}
+            >
+              <option value="">All activities</option>
+              {activities.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            {selectedActivity && (
+              <button className="clear-filter" onClick={() => setSelectedActivity(null)}>
+                × All
+              </button>
+            )}
+          </div>
+          <ActivityChart
+            selectedActivity={selectedActivity}
+            onSelectActivity={(a) => setSelectedActivity(prev => prev === a ? null : a)}
+          />
           {selectedActivity && <ActivityLineChart activity={selectedActivity} />}
         </div>
+        <YearHeatmap activity={selectedActivity ?? undefined} />
       </div>
     </>
   );
