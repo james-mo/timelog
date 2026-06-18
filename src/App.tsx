@@ -1,7 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions } from './db'
+import { getErrorLog, clearErrorLog } from './errors'
+import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions, addActivity, fetchAllActivities, deleteActivityByName } from './db'
 import { parseDuration, formatDuration, formatDurationLong, unixTimestamp, formatDurationShort, unixTimestampToDate, formatStopwatch } from './format';
 import { totalsByActivity, totalsByDay, getTotalToday, totalsByDateMap } from './stats';
+import { getTagMap, saveTagMap, getAllTags, activitiesForTag, type TagMap } from './tags';
+
+type Filter = { type: 'activity' | 'tag'; value: string } | null;
 
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
@@ -257,8 +261,7 @@ function EditSession({session, activities = []}: { session: Session, activities?
   )
 }
 
-function Timer({ onStop }: { onStop: (duration: number, startTime: number) => void }) {
-
+function useTimer() {
   const [isActive, setIsActive] = useState(false);
   const [startTime, setStartTime] = useState(0);
   const [now, setNow] = useState(0);
@@ -267,13 +270,8 @@ function Timer({ onStop }: { onStop: (duration: number, startTime: number) => vo
 
   useEffect(() => {
     if (!isActive) return;
-
-    const id = setInterval(() => {
-      setNow(Math.floor(Date.now() / 1000))
-    }, 200);
-    return () => {
-      clearInterval(id);
-    };
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 200);
+    return () => clearInterval(id);
   }, [isActive]);
 
   useEffect(() => {
@@ -286,7 +284,7 @@ function Timer({ onStop }: { onStop: (duration: number, startTime: number) => vo
   }, []);
 
   function start() {
-    const t = Math.floor(Date.now() / 1000);   
+    const t = Math.floor(Date.now() / 1000);
     setStartTime(t);
     setNow(t);
     setIsActive(true);
@@ -295,19 +293,23 @@ function Timer({ onStop }: { onStop: (duration: number, startTime: number) => vo
 
   function stop() {
     setIsActive(false);
-    onStop(now - startTime, startTime);
     localStorage.removeItem('strata_timer_start');
   }
 
+  return { elapsed, isActive, startTime, start, stop };
+}
+
+function TimerUI({ elapsed, isActive, onToggle }: {
+  elapsed: number;
+  isActive: boolean;
+  onToggle: () => void;
+}) {
   return (
     <>
-      <div id='timer'>
-        <button id='start-timer' onClick={isActive ? stop : start}>{isActive ? "Stop timer" : "Start timer"}</button>
-        <span id='elapsed' className='data'>{formatStopwatch(elapsed)}</span>
-        
-      </div>
+      <button onClick={onToggle}>{isActive ? 'Stop timer' : 'Start timer'}</button>
+      <span className='data'>{formatStopwatch(elapsed)}</span>
     </>
-  )
+  );
 }
 
 function GetSessions({activities = []}: { activities?: string[]} ) {
@@ -345,25 +347,42 @@ function GetSessions({activities = []}: { activities?: string[]} ) {
   )
 }
 
-export function ActivityChart({ selectedActivity, onSelectActivity }: {
-  selectedActivity: string | null,
+function measureTextWidth(texts: string[], font: string): number {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return texts.reduce((max, t) => Math.max(max, t.length * 9), 60);
+  ctx.font = font;
+  return texts.reduce((max, t) => Math.max(max, Math.ceil(ctx.measureText(t).width)), 60);
+}
+
+export function ActivityChart({ filteredActivities, onSelectActivity }: {
+  filteredActivities: string[] | null,
   onSelectActivity: (activity: string) => void,
 }) {
   const sessions = useLiveQuery(() => db.sessions.toArray()) ?? [];
-  const data = totalsByActivity(sessions);
+  const explicitActivities = useLiveQuery(fetchAllActivities) ?? [];
+
+  const statsData = totalsByActivity(sessions);
+  const statsMap = new Map(statsData.map(d => [d.activity, d.totalSeconds]));
+  const allNames = [...new Set([...statsData.map(d => d.activity), ...explicitActivities.map(a => a.name)])];
+  const data = allNames
+    .map(activity => ({ activity, totalSeconds: statsMap.get(activity) ?? 0 }))
+    .sort((a, b) => b.totalSeconds - a.totalSeconds);
+
+  const yAxisWidth = measureTextWidth(data.map(d => d.activity), '18px "IBM Plex Sans", system-ui, sans-serif') + 12;
 
   return (
     <ResponsiveContainer height={Math.max(200, data.length * 40)}>
       <BarChart data={data} layout="vertical">
         <XAxis type="number" tickFormatter={(seconds) => formatDurationShort(seconds)} />
-        <YAxis type="category" dataKey="activity" width={120} />
+        <YAxis type="category" dataKey="activity" width={yAxisWidth} />
         <Tooltip formatter={(seconds) => formatDurationShort(Number(seconds))} />
         <Bar dataKey="totalSeconds" name="Total time" className='bar' fill="var(--accent)"
           onClick={(d) => onSelectActivity(d.payload.activity)}>
           {data.map((entry) => (
             <Cell
               key={entry.activity}
-              fillOpacity={selectedActivity && selectedActivity !== entry.activity ? 0.3 : 1}
+              fillOpacity={filteredActivities && !filteredActivities.includes(entry.activity) ? 0.3 : 1}
             />
           ))}
         </Bar>
@@ -382,7 +401,8 @@ export function ActivityLineChart({ activity }: {activity: string}) {
         <XAxis dataKey="date" textAnchor='middle'/>
         <YAxis tickFormatter={(seconds) => formatDurationShort(Number(seconds))} />
         <Tooltip formatter={(seconds) => formatDurationShort(Number(seconds))} />
-        <Line dataKey="totalSeconds" isAnimationActive={false} type="linear" name="Total time" stroke="var(--accent)"></Line>
+        <Line dataKey="totalSeconds" isAnimationActive={false} type="monotone" name="Total time" stroke="var(--accent)"
+          dot={{r: 1}}></Line>
       </LineChart>
     </ResponsiveContainer>
   )
@@ -402,9 +422,11 @@ function TotalToday() {
 
 const DAY_LABELS = ['Sun', '', 'Tue', '', 'Thu', '', 'Sat'];
 
-function YearHeatmap({ activity }: { activity?: string }) {
+function YearHeatmap({ activityFilter }: { activityFilter?: string[] }) {
   const allSessions = useLiveQuery(() => db.sessions.toArray()) ?? [];
-  const sessions = activity ? allSessions.filter(s => s.activity_name === activity) : allSessions;
+  const sessions = activityFilter
+    ? allSessions.filter(s => activityFilter.includes(s.activity_name))
+    : allSessions;
   const dateMap = totalsByDateMap(sessions);
 
   const today = new Date();
@@ -473,26 +495,226 @@ function YearHeatmap({ activity }: { activity?: string }) {
   );
 }
 
-function Sidebar() {
- 
+function AddActivityForm({ existingNames }: { existingNames: string[] }) {
+  const [name, setName] = useState('');
+
+  async function handleAdd() {
+    const trimmed = name.trim();
+    if (!trimmed || existingNames.includes(trimmed)) return;
+    await addActivity(trimmed);
+    setName('');
+  }
+
+  return (
+    <div className="add-activity-form">
+      <input
+        className="add-activity-input"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && handleAdd()}
+        placeholder="New activity…"
+      />
+      <button type="button" onClick={handleAdd}>+</button>
+    </div>
+  );
+}
+
+function TagEditorDialog({ activities, tagMap, onSave }: {
+  activities: string[];
+  tagMap: TagMap;
+  onSave: (newMap: TagMap) => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  function open() {
+    const d: Record<string, string> = {};
+    for (const a of activities) d[a] = (tagMap[a] ?? []).join(', ');
+    setDraft(d);
+    dialogRef.current?.showModal();
+  }
+
+  function handleSave() {
+    const newMap: TagMap = {};
+    for (const [activity, raw] of Object.entries(draft)) {
+      const tags = raw.split(',').map(t => t.trim()).filter(Boolean);
+      if (tags.length > 0) newMap[activity] = tags;
+    }
+    onSave(newMap);
+    dialogRef.current?.close();
+  }
+
   return (
     <>
-      <div id="menu">
-        <Export />
-      </div>
+      <button type="button" onClick={open}>Tags</button>
+      <dialog ref={dialogRef}>
+        <h2>Activity tags</h2>
+        <div className="tag-editor">
+          {activities.map(a => (
+            <div key={a} className="tag-editor-row">
+              <span className="tag-editor-label">{a}</span>
+              <input
+                value={draft[a] ?? ''}
+                onChange={e => setDraft(prev => ({ ...prev, [a]: e.target.value }))}
+                placeholder="tag1, tag2, ..."
+              />
+            </div>
+          ))}
+        </div>
+        <div className="tag-editor-actions">
+          <button type="button" onClick={() => dialogRef.current?.close()}>Cancel</button>
+          <button type="button" onClick={handleSave}>Save</button>
+        </div>
+      </dialog>
     </>
-  )
+  );
+}
+
+function Sidebar() {
+  const [errors, setErrors] = useState(getErrorLog);
+
+  function handleClear() {
+    clearErrorLog();
+    setErrors([]);
+  }
+
+  return (
+    <div id="menu">
+      <Export />
+      {errors.length > 0 && (
+        <div className="error-indicator">
+          <span>⚠ {errors.length} error{errors.length !== 1 ? 's' : ''}</span>
+          <button className="clear-errors" onClick={handleClear}>Clear</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function App() {
   const [pending, setPending] = useState<{ duration: number; timestamp: number } | null>(null);
-  const [selectedActivity, setSelectedActivity] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>(null);
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ name: string; sessionCount: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [tagMap, setTagMap] = useState<TagMap>(getTagMap);
 
   const activities = useLiveQuery(getAllActivityNames) ?? [];
+  const allTags = getAllTags(tagMap).filter(tag =>
+    activitiesForTag(tagMap, tag).some(a => activities.includes(a))
+  );
+  const untaggedActivities = activities.filter(a => !tagMap[a] || tagMap[a].length === 0);
 
-  function handleTimerStop(duration: number, startTime: number) {
-    setPending({ duration, timestamp: startTime })
+  const filteredActivities: string[] | null = filter === null ? null
+    : filter.type === 'activity' ? [filter.value]
+    : filter.value === '__untagged__' ? untaggedActivities
+    : activitiesForTag(tagMap, filter.value);
+
+  function handleClearFilter() {
+    setFilter(null);
+    setActiveGroup(null);
+  }
+
+  function handleTagChipClick(tag: string) {
+    if (activeGroup === tag) {
+      setActiveGroup(null);
+      setFilter(null);
+    } else {
+      setActiveGroup(tag);
+      setFilter({ type: 'tag', value: tag });
+    }
+  }
+
+  function handleActivityChipClick(activity: string) {
+    if (filter?.type === 'activity' && filter.value === activity) {
+      setFilter(activeGroup ? { type: 'tag', value: activeGroup } : null);
+    } else {
+      setFilter({ type: 'activity', value: activity });
+    }
+  }
+
+  function handleBarClick(activity: string) {
+    if (filter?.type === 'activity' && filter.value === activity) {
+      setFilter(null);
+      setActiveGroup(null);
+    } else {
+      setFilter({ type: 'activity', value: activity });
+      setActiveGroup(tagMap[activity]?.[0] ?? '__untagged__');
+    }
+  }
+
+  async function handleDeleteActivityClick(name: string) {
+    const count = await db.sessions.where('activity_name').equals(name).count();
+    if (count === 0) {
+      await deleteActivityByName(name);
+      if (tagMap[name]) {
+        const newMap = { ...tagMap };
+        delete newMap[name];
+        saveTagMap(newMap);
+        setTagMap(newMap);
+      }
+      if (filter?.type === 'activity' && filter.value === name) setFilter(null);
+    } else {
+      setPendingDelete({ name, sessionCount: count });
+    }
+  }
+
+  async function confirmDeleteActivity() {
+    if (!pendingDelete) return;
+    const { name } = pendingDelete;
+    await deleteActivityByName(name);
+    if (tagMap[name]) {
+      const newMap = { ...tagMap };
+      delete newMap[name];
+      saveTagMap(newMap);
+      setTagMap(newMap);
+    }
+    if (filter?.type === 'activity' && filter.value === name) {
+      setFilter(activeGroup && activeGroup !== '__untagged__' ? { type: 'tag', value: activeGroup } : null);
+    }
+    setPendingDelete(null);
+  }
+
+  function handleTagSave(newMap: TagMap) {
+    saveTagMap(newMap);
+    setTagMap(newMap);
+    if (filter?.type === 'tag' && filter.value !== '__untagged__' && activitiesForTag(newMap, filter.value).length === 0) {
+      setFilter(null);
+      setActiveGroup(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!activeGroup || activeGroup === '__untagged__') return;
+    const stillHasActivities = activitiesForTag(tagMap, activeGroup).some(a => activities.includes(a));
+    if (!stillHasActivities) {
+      setActiveGroup(null);
+      if (filter?.type === 'tag' && filter.value === activeGroup) setFilter(null);
+    }
+  }, [activities, tagMap]);
+
+  const timer = useTimer();
+  const timerRef = useRef<HTMLDivElement>(null);
+  const [timerInView, setTimerInView] = useState(true);
+
+  useEffect(() => {
+    const el = timerRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setTimerInView(entry.isIntersecting),
+      { threshold: 0 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  function handleTimerToggle() {
+    if (timer.isActive) {
+      timer.stop();
+      setPending({ duration: timer.elapsed, timestamp: timer.startTime });
+    } else {
+      timer.start();
+    }
   }
 
   function handleSidebar() {
@@ -510,8 +732,15 @@ function App() {
         
       </header>
       {sidebarOpen && <Sidebar></Sidebar>}
-      <div id='content'>
-        <Timer onStop={handleTimerStop}/>
+      {!timerInView && (
+        <div className='timer-float'>
+          <TimerUI elapsed={timer.elapsed} isActive={timer.isActive} onToggle={handleTimerToggle} />
+        </div>
+      )}
+      <div id='content' className={timerInView ? '' : 'timer-floating'}>
+        <div id='timer' ref={timerRef}>
+          <TimerUI elapsed={timer.elapsed} isActive={timer.isActive} onToggle={handleTimerToggle} />
+        </div>
         <AddSessionDialog
           activities={activities}
           prefill={pending}
@@ -535,27 +764,49 @@ function App() {
         </div>
 
         <div id='linechart'>
-          <div className="chart-filter">
-            <select
-              value={selectedActivity ?? ''}
-              onChange={e => setSelectedActivity(e.target.value || null)}
-            >
-              <option value="">All activities</option>
-              {activities.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-            {selectedActivity && (
-              <button className="clear-filter" onClick={() => setSelectedActivity(null)}>
-                × All
-              </button>
+          <div className="filter-bar">
+            <button className={`filter-chip${!filter ? ' active' : ''}`} onClick={handleClearFilter}>All</button>
+            {allTags.map(tag => (
+              <button key={tag}
+                className={`filter-chip${activeGroup === tag ? ' active' : ''}`}
+                onClick={() => handleTagChipClick(tag)}>#{tag}</button>
+            ))}
+            {untaggedActivities.length > 0 && (
+              <button
+                className={`filter-chip${activeGroup === '__untagged__' ? ' active' : ''}`}
+                onClick={() => handleTagChipClick('__untagged__')}>Untagged</button>
             )}
+            <TagEditorDialog activities={activities} tagMap={tagMap} onSave={handleTagSave} />
           </div>
-          <ActivityChart
-            selectedActivity={selectedActivity}
-            onSelectActivity={(a) => setSelectedActivity(prev => prev === a ? null : a)}
-          />
-          {selectedActivity && <ActivityLineChart activity={selectedActivity} />}
+          {activeGroup && (
+            <div className="filter-activity-row">
+              {(activeGroup === '__untagged__' ? untaggedActivities : activitiesForTag(tagMap, activeGroup).filter(a => activities.includes(a))).map(a => (
+                <div key={a} className="activity-chip-group">
+                  {pendingDelete?.name === a ? (
+                    <span className="delete-confirm">
+                      {pendingDelete.sessionCount === 1
+                        ? `Delete "${a}" and its 1 entry?`
+                        : `Delete "${a}" and its ${pendingDelete.sessionCount} entries?`}
+                      <button onClick={confirmDeleteActivity}>Yes</button>
+                      <button onClick={() => setPendingDelete(null)}>No</button>
+                    </span>
+                  ) : (
+                    <>
+                      <button
+                        className={`filter-chip filter-activity-chip${filter?.type === 'activity' && filter.value === a ? ' active' : ''}`}
+                        onClick={() => handleActivityChipClick(a)}>{a}</button>
+                      <button className="activity-delete-btn" onClick={() => handleDeleteActivityClick(a)}>×</button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <AddActivityForm existingNames={activities} />
+          <ActivityChart filteredActivities={filteredActivities} onSelectActivity={handleBarClick} />
+          {filter?.type === 'activity' && <ActivityLineChart activity={filter.value} />}
         </div>
-        <YearHeatmap activity={selectedActivity ?? undefined} />
+        <YearHeatmap activityFilter={filteredActivities ?? undefined} />
       </div>
     </>
   );

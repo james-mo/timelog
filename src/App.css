@@ -31,15 +31,31 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9b948a;
-    --text-h: #e8e3d9;
-    --bg: #221d15;
-    --border: #34302a;
-    --surface: #252220;
-    --accent: #a89683;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --zebra-bg: rgba(47, 48, 58, 0.5);
+    --text: #b0a89e;
+    --text-h: #ece8e0;
+    --bg: #1e1a13;
+    --border: #47413a;
+    --surface: #2d2820;
+    --accent: #b0a08e;
+    --accent-bg: rgba(176, 160, 142, 0.13);
+    --accent-border: rgba(176, 160, 142, 0.42);
+    --zebra-bg: rgba(255, 235, 210, 0.05);
+    --header-bg: rgba(0, 0, 0, 0.3);
+  }
+
+  dialog {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .recharts-cartesian-axis-tick text {
+    fill: var(--text);
+  }
+
+  .recharts-cartesian-axis-line,
+  .recharts-cartesian-axis-tick-line {
+    stroke: var(--border);
   }
 }
 
@@ -202,8 +218,27 @@ form button:nth-last-child(2) {
   margin-bottom: 1em;
 }
 
-#timer * {
+#timer > * {
   margin-right: 1em;
+}
+
+.timer-float {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.6rem 1.1rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+#content.timer-floating {
+  padding-bottom: 5rem;
 }
 
 #export-section {
@@ -261,7 +296,8 @@ form button:nth-last-child(2) {
 }
 
 #menu {
-  height: 10rem;
+  min-height: 10rem;
+  height: auto;
   position: absolute;
   z-index: 2;
   top: 0;
@@ -275,20 +311,154 @@ form button:nth-last-child(2) {
   flex-direction: column;
 }
 
-
-#export-section {
-
+/* Error boundary fallback */
+.error-boundary {
+  padding: 3rem 2rem;
+  text-align: center;
 }
 
-/* Chart filter */
-.chart-filter {
+.error-boundary p {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  margin: 1rem auto;
+  max-width: 480px;
+  word-break: break-word;
+}
+
+/* Error indicator in sidebar */
+.error-indicator {
   display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  font-size: 0.8rem;
+}
+
+.error-indicator > span {
+  color: #b94040;
+}
+
+button.clear-errors {
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+button.clear-errors:hover {
+  border-color: #b94040;
+  color: #b94040;
+  background: transparent;
+}
+
+/* Chart filter — chip bar */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   margin-top: 3em;
 }
 
-.chart-filter select {
+.filter-chip {
+  display: inline-block;
+  padding: 4px 13px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--border);
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.filter-chip:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--text-h);
+}
+
+.filter-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.filter-chip.active:hover {
+  background: color-mix(in srgb, var(--accent) 80%, var(--text-h));
+}
+
+.filter-activity-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  padding-left: 0.5rem;
+}
+
+.filter-activity-chip {
+  font-size: 0.8rem;
+  padding: 2px 11px;
+}
+
+.activity-chip-group {
+  display: inline-flex;
+  align-items: center;
+}
+
+.activity-delete-btn {
+  background: transparent;
+  border: none;
+  border-radius: 0 999px 999px 0;
+  padding: 2px 7px 2px 2px;
+  font-size: 0.8rem;
+  color: var(--text);
+  opacity: 0.25;
+  cursor: pointer;
+  line-height: 1;
+  margin-left: -3px;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.activity-chip-group:hover .activity-delete-btn {
+  opacity: 0.55;
+}
+
+.activity-delete-btn:hover {
+  opacity: 1 !important;
+  color: #c0392b;
+  background: color-mix(in srgb, #c0392b 12%, var(--surface));
+}
+
+.delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-h);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px 3px 12px;
+}
+
+.delete-confirm button {
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+
+/* Add activity inline form */
+.add-activity-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.add-activity-input {
   font: inherit;
   font-size: 0.9rem;
   color: var(--text-h);
@@ -296,26 +466,83 @@ form button:nth-last-child(2) {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 10px;
-  cursor: pointer;
+  width: 200px;
 }
 
-.chart-filter select:focus {
+.add-activity-input:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-button.clear-filter {
-  font-size: 0.85rem;
-  padding: 4px 10px;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
+/* Tag editor dialog */
+.tag-editor {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 360px;
 }
 
-button.clear-filter:hover {
-  background: var(--surface);
-  border-color: var(--accent);
+.tag-editor-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 1rem;
+}
+
+.tag-editor-label {
   color: var(--text-h);
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.tag-editor-row input {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-h);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tag-editor-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.tag-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+/* Tag chips shown under filter when an activity is selected */
+.activity-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.tag-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--surface));
+  font-size: 0.75rem;
+  color: var(--text-h);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tag-chip:hover {
+  background: color-mix(in srgb, var(--accent) 40%, var(--surface));
 }
 
 /* Year heatmap */
