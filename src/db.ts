@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
 import dexieCloud from 'dexie-cloud-addon';
+import type { TagMap } from './tags';
 
 type Session = {
     id?: string;
@@ -14,9 +15,16 @@ type Activity = {
     name: string;
 }
 
+type TagAssignment = {
+    id?: string;
+    activity_name: string;
+    tag: string;
+}
+
 const db = new Dexie('timelog', { addons: [dexieCloud]}) as Dexie & {
     sessions: EntityTable<Session, 'id'>;
     activities: EntityTable<Activity, 'id'>;
+    tag_assignments: EntityTable<TagAssignment, 'id'>;
 };
 
 db.version(1).stores({
@@ -26,6 +34,12 @@ db.version(1).stores({
 db.version(2).stores({
     sessions: '@id, activity_name, timestamp',
     activities: '@id, name',
+});
+
+db.version(3).stores({
+    sessions: '@id, activity_name, timestamp',
+    activities: '@id, name',
+    tag_assignments: '@id, activity_name, tag',
 });
 
 db.cloud.configure({
@@ -55,10 +69,28 @@ const updateSession = async (updatedSession: Session): Promise<string | undefine
 }
 
 const deleteActivityByName = (name: string) =>
-    db.transaction('rw', [db.activities, db.sessions], async () => {
+    db.transaction('rw', [db.activities, db.sessions, db.tag_assignments], async () => {
         await db.activities.where('name').equals(name).delete();
         await db.sessions.where('activity_name').equals(name).delete();
+        await db.tag_assignments.where('activity_name').equals(name).delete();
     });
 
-export { db, addSession, deleteSession, updateSession, fetchAllSessions, fetchAllActivities, addActivity, deleteActivity, deleteActivityByName, getAllActivityNames };
-export type { Session, Activity };
+const saveTagMapToDb = async (newMap: TagMap): Promise<void> => {
+    const existing = await db.tag_assignments.toArray();
+    const affectedActivities = new Set([
+        ...existing.map(a => a.activity_name),
+        ...Object.keys(newMap),
+    ]);
+    await db.transaction('rw', db.tag_assignments, async () => {
+        for (const activity_name of affectedActivities) {
+            await db.tag_assignments.where('activity_name').equals(activity_name).delete();
+            const tags = newMap[activity_name] ?? [];
+            if (tags.length > 0) {
+                await db.tag_assignments.bulkAdd(tags.map(tag => ({ activity_name, tag })));
+            }
+        }
+    });
+};
+
+export { db, addSession, deleteSession, updateSession, fetchAllSessions, fetchAllActivities, addActivity, deleteActivity, deleteActivityByName, getAllActivityNames, saveTagMapToDb };
+export type { Session, Activity, TagAssignment };
