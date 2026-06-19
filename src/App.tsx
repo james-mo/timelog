@@ -2,12 +2,12 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { getErrorLog, clearErrorLog } from './errors'
 import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions, addActivity, fetchAllActivities, deleteActivityByName } from './db'
 import { parseDuration, formatDuration, formatDurationLong, unixTimestamp, formatDurationShort, unixTimestampToDate, formatStopwatch } from './format';
-import { totalsByActivity, totalsByDay, getTotalToday, totalsByDateMap } from './stats';
+import { totalsByActivity, totalsByDay, totalsByDayMulti, getTotalToday, totalsByDateMap } from './stats';
 import { getTagMap, saveTagMap, getAllTags, activitiesForTag, type TagMap } from './tags';
 
 type Filter = { type: 'activity' | 'tag'; value: string } | null;
 
-import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Legend } from 'recharts';
 
 import './App.css'
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -391,21 +391,70 @@ export function ActivityChart({ filteredActivities, onSelectActivity }: {
   );
 }
 
-export function ActivityLineChart({ activity }: {activity: string}) {
+const LINE_COLORS = [
+  '#e07842', '#4a8dcc', '#6aac40', '#b94888', '#7b58c8',
+  '#c8952a', '#3aaa8a', '#c04848', '#7aaa45', '#9048c8',
+];
+
+export function ActivityLineChart({ activities }: { activities: string[] }) {
   const sessions = useLiveQuery(() => db.sessions.toArray()) ?? [];
-  const data = totalsByDay(sessions, activity);
+
+  if (activities.length === 0) return null;
+
+  // Single activity: area chart
+  if (activities.length === 1) {
+    const data = totalsByDay(sessions, activities[0]);
+    if (data.length === 0) return null;
+    return (
+      <ResponsiveContainer height={300}>
+        <AreaChart data={data} margin={{top: 10, right: 20, bottom: 20, left: 10}}>
+          <XAxis dataKey="date" textAnchor='middle'/>
+          <YAxis tickFormatter={(s) => formatDurationShort(Number(s))} />
+          <Tooltip formatter={(s) => formatDurationShort(Number(s))} />
+          <Area dataKey="totalSeconds" isAnimationActive={false} type="bump" name={activities[0]}
+            stroke="var(--accent)" fill="var(--accent-bg)" dot={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  // Multi-activity: only show those with at least one session
+  const withSessions = activities.filter(a => sessions.some(s => s.activity_name === a));
+  if (withSessions.length === 0) return null;
+
+  if (withSessions.length === 1) {
+    const data = totalsByDay(sessions, withSessions[0]);
+    if (data.length === 0) return null;
+    return (
+      <ResponsiveContainer height={300}>
+        <AreaChart data={data} margin={{top: 10, right: 20, bottom: 20, left: 10}}>
+          <XAxis dataKey="date" textAnchor='middle'/>
+          <YAxis tickFormatter={(s) => formatDurationShort(Number(s))} />
+          <Tooltip formatter={(s) => formatDurationShort(Number(s))} />
+          <Area dataKey="totalSeconds" isAnimationActive={false} type="bump" name={withSessions[0]}
+            stroke="var(--accent)" fill="var(--accent-bg)" dot={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  const data = totalsByDayMulti(sessions, withSessions);
+  if (data.length === 0) return null;
 
   return (
     <ResponsiveContainer height={300}>
       <LineChart data={data} margin={{top: 10, right: 20, bottom: 20, left: 10}}>
         <XAxis dataKey="date" textAnchor='middle'/>
-        <YAxis tickFormatter={(seconds) => formatDurationShort(Number(seconds))} />
-        <Tooltip formatter={(seconds) => formatDurationShort(Number(seconds))} />
-        <Line dataKey="totalSeconds" isAnimationActive={false} type="monotone" name="Total time" stroke="var(--accent)"
-          dot={{r: 1}}></Line>
+        <YAxis tickFormatter={(s) => formatDurationShort(Number(s))} />
+        <Tooltip formatter={(s) => formatDurationShort(Number(s))} />
+        <Legend />
+        {withSessions.map((a, i) => (
+          <Line key={a} dataKey={a} isAnimationActive={false} type="bump" name={a}
+            stroke={LINE_COLORS[i % LINE_COLORS.length]} dot={false} strokeWidth={1.5} />
+        ))}
       </LineChart>
     </ResponsiveContainer>
-  )
+  );
 }
 
 function TotalToday() {
@@ -450,11 +499,19 @@ function YearHeatmap({ activityFilter }: { activityFilter?: string[] }) {
     return m !== prev ? week[0].date.toLocaleString('default', { month: 'short' }) : '';
   });
 
+  const nonZeroDays = weeks.flat()
+    .filter(({ date }) => date <= today)
+    .map(({ dateStr }) => dateMap[dateStr] ?? 0)
+    .filter(s => s > 0)
+    .sort((a, b) => a - b);
+  const q = (p: number) => nonZeroDays[Math.floor(nonZeroDays.length * p)] ?? 0;
+  const [t1, t2, t3] = [q(0.25), q(0.5), q(0.75)];
+
   function level(seconds: number): number {
     if (seconds === 0) return 0;
-    if (seconds < 3600) return 1;
-    if (seconds < 7200) return 2;
-    if (seconds < 14400) return 3;
+    if (seconds <= t1) return 1;
+    if (seconds <= t2) return 2;
+    if (seconds <= t3) return 3;
     return 4;
   }
 
@@ -570,7 +627,7 @@ function TagEditorDialog({ activities, tagMap, onSave }: {
   );
 }
 
-function Sidebar() {
+function Sidebar({ onClose }: { onClose: () => void }) {
   const [errors, setErrors] = useState(getErrorLog);
 
   function handleClear() {
@@ -580,6 +637,7 @@ function Sidebar() {
 
   return (
     <div id="menu">
+      <button className="sidebar-close" onClick={onClose}>×</button>
       <Export />
       {errors.length > 0 && (
         <div className="error-indicator">
@@ -726,12 +784,10 @@ function App() {
       <header className='app-header'>
         <h1 id='app-name'>Strata</h1>
         <TotalToday />
-        <nav id="sidebar" onClick={handleSidebar}>
-          {sidebarOpen ? '×' : '☰'}
-        </nav>
+        {!sidebarOpen && <nav id="sidebar" onClick={handleSidebar}>☰</nav>}
         
       </header>
-      {sidebarOpen && <Sidebar></Sidebar>}
+      {sidebarOpen && <Sidebar onClose={handleSidebar} />}
       {!timerInView && (
         <div className='timer-float'>
           <TimerUI elapsed={timer.elapsed} isActive={timer.isActive} onToggle={handleTimerToggle} />
@@ -804,7 +860,7 @@ function App() {
           )}
           <AddActivityForm existingNames={activities} />
           <ActivityChart filteredActivities={filteredActivities} onSelectActivity={handleBarClick} />
-          {filter?.type === 'activity' && <ActivityLineChart activity={filter.value} />}
+          <ActivityLineChart activities={filteredActivities ?? activities} />
         </div>
         <YearHeatmap activityFilter={filteredActivities ?? undefined} />
       </div>

@@ -273,7 +273,7 @@ form button:nth-last-child(2) {
   background: var(--header-bg);
   padding: 0 2rem;
   position: relative;
-  z-index: 3;
+  z-index: 101;
   width: 100%;
   box-sizing: border-box;
 }
@@ -292,23 +292,40 @@ form button:nth-last-child(2) {
   margin-left: auto;
   cursor: pointer;
   font-size: 24px;
-  z-index: 2;
 }
 
 #menu {
   min-height: 10rem;
-  height: auto;
-  position: absolute;
-  z-index: 2;
+  height: 100vh;
+  position: fixed;
+  z-index: 102;
   top: 0;
   right: 0;
-  width: min(80vw, 175px);
+  width: min(80vw, 200px);
   background: var(--surface);
   border-left: 1px solid var(--border);
-  padding: 6rem 1.5rem 1.5rem;
+  padding: 5rem 1.5rem 1.5rem;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+}
+
+.sidebar-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--text);
+  padding: 0.2rem 0.5rem;
+  line-height: 1;
+}
+
+.sidebar-close:hover {
+  background: var(--accent-bg);
+  color: var(--text-h);
 }
 
 /* Error boundary fallback */
