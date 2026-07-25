@@ -21,10 +21,16 @@ type TagAssignment = {
     tag: string;
 }
 
+type TimerState = {
+    id: string;
+    startTime: number;
+}
+
 const db = new Dexie('timelog', { addons: [dexieCloud]}) as Dexie & {
     sessions: EntityTable<Session, 'id'>;
     activities: EntityTable<Activity, 'id'>;
     tag_assignments: EntityTable<TagAssignment, 'id'>;
+    timer_state: EntityTable<TimerState, 'id'>;
 };
 
 db.version(1).stores({
@@ -40,6 +46,13 @@ db.version(3).stores({
     sessions: '@id, activity_name, timestamp',
     activities: '@id, name',
     tag_assignments: '@id, activity_name, tag',
+});
+
+db.version(4).stores({
+    sessions: '@id, activity_name, timestamp',
+    activities: '@id, name',
+    tag_assignments: '@id, activity_name, tag',
+    timer_state: 'id',
 });
 
 db.cloud.configure({
@@ -68,6 +81,11 @@ const updateSession = async (updatedSession: Session): Promise<string | undefine
     return db.sessions.put(updatedSession);
 }
 
+const ACTIVE_TIMER_ID = 'active';
+const startTimer = (startTime: number) => db.timer_state.put({ id: ACTIVE_TIMER_ID, startTime });
+const stopTimer = () => db.timer_state.delete(ACTIVE_TIMER_ID);
+const getActiveTimer = () => db.timer_state.get(ACTIVE_TIMER_ID);
+
 const deleteActivityByName = (name: string) =>
     db.transaction('rw', [db.activities, db.sessions, db.tag_assignments], async () => {
         await db.activities.where('name').equals(name).delete();
@@ -92,5 +110,5 @@ const saveTagMapToDb = async (newMap: TagMap): Promise<void> => {
     });
 };
 
-export { db, addSession, deleteSession, updateSession, fetchAllSessions, fetchAllActivities, addActivity, deleteActivity, deleteActivityByName, getAllActivityNames, saveTagMapToDb };
-export type { Session, Activity, TagAssignment };
+export { db, addSession, deleteSession, updateSession, fetchAllSessions, fetchAllActivities, addActivity, deleteActivity, deleteActivityByName, getAllActivityNames, saveTagMapToDb, startTimer, stopTimer, getActiveTimer };
+export type { Session, Activity, TagAssignment, TimerState };

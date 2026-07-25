@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { getErrorLog, clearErrorLog } from './errors'
-import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions, addActivity, fetchAllActivities, deleteActivityByName, saveTagMapToDb } from './db'
+import { addSession, deleteSession, type Session, db, getAllActivityNames, updateSession, fetchAllSessions, addActivity, fetchAllActivities, deleteActivityByName, saveTagMapToDb, startTimer, stopTimer, getActiveTimer } from './db'
 import { parseDuration, formatDuration, formatDurationLong, unixTimestamp, formatDurationShort, unixTimestampToDate, formatStopwatch } from './format';
 import { totalsByActivity, totalsByDay, totalsByDayMulti, getTotalToday, totalsByDateMap } from './stats';
 import { getAllTags, activitiesForTag, type TagMap } from './tags';
@@ -262,38 +262,38 @@ function EditSession({session, activities = []}: { session: Session, activities?
 }
 
 function useTimer() {
-  const [isActive, setIsActive] = useState(false);
-  const [startTime, setStartTime] = useState(0);
-  const [now, setNow] = useState(0);
+  const timerState = useLiveQuery(getActiveTimer);
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
+  const isActive = timerState !== undefined;
+  const startTime = timerState?.startTime ?? 0;
   const elapsed = isActive ? now - startTime : 0;
 
   useEffect(() => {
     if (!isActive) return;
+    setNow(Math.floor(Date.now() / 1000));
     const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 200);
     return () => clearInterval(id);
   }, [isActive]);
 
+  // One-time migration: move any device-local running timer into the synced table.
   useEffect(() => {
     const saved = localStorage.getItem('strata_timer_start');
-    if (saved) {
-      setStartTime(Number(saved));
-      setNow(Math.floor(Date.now() / 1000));
-      setIsActive(true);
-    }
+    if (!saved) return;
+    localStorage.removeItem('strata_timer_start');
+    getActiveTimer().then(existing => {
+      if (!existing) startTimer(Number(saved));
+    });
   }, []);
 
   function start() {
     const t = Math.floor(Date.now() / 1000);
-    setStartTime(t);
     setNow(t);
-    setIsActive(true);
-    localStorage.setItem('strata_timer_start', String(t));
+    startTimer(t);
   }
 
   function stop() {
-    setIsActive(false);
-    localStorage.removeItem('strata_timer_start');
+    stopTimer();
   }
 
   return { elapsed, isActive, startTime, start, stop };
